@@ -32,7 +32,7 @@ In order to set up the integration, you should have familiarity with:
         - In the "Input data" section, map the following two items:
             - raw_body: 1. Raw Body
             - auth_header: 1. Headers Http Authorization
-        - Paste in the following code in the code section.  Be sure to replace the placeholder "YOUR_STORAGE_SECRET_HERE" with the UUID secret generated earlier along with the webhook key and Tableau authentication variables.
+        - Paste in the following code in the code section.  Be sure to replace the placeholder "YOUR_STORAGE_SECRET_HERE" with the UUID secret generated earlier along with the webhook key, appropriate API version, and Tableau authentication variables.
             - ```python
                 import requests
                 import hashlib
@@ -49,6 +49,7 @@ In order to set up the integration, you should have familiarity with:
 
                 #Enter the name of the workbook to refresh
                 workbook_name = "YOUR_WORKBOOK_NAME"
+                api_version = "ENTER_COMPATIBLE_VERSION"
 
                 #Validate authenticity of webhook coming from dbt Cloud
                 auth_header = input_data['auth_header']
@@ -65,7 +66,7 @@ In order to set up the integration, you should have familiarity with:
                 if hook_data['runStatus'] == "Success":
 
                     #Authenticate with Tableau Server to get an authentication token
-                    auth_url = f"{server_url}/api/3.11/auth/signin"
+                    auth_url = f"{server_url}/api/{api_version}/auth/signin"
                     auth_data = {
                         "credentials": {
                             "personalAccessTokenName": pat_name,
@@ -86,7 +87,7 @@ In order to set up the integration, you should have familiarity with:
                     site_id = auth_response.json()["credentials"]["site"]["id"]
 
                     #Extract the workbook ID
-                    workbooks_url = f"{server_url}/api/3.11/sites/{site_id}/workbooks"
+                    workbooks_url = f"{server_url}/api/{api_version}/sites/{site_id}/workbooks"
                     workbooks_headers = {
                         "Accept": "application/json",
                         "Content-Type": "application/json",
@@ -102,7 +103,7 @@ In order to set up the integration, you should have familiarity with:
                     workbook_id = workbooks_data["workbooks"]["workbook"][0]["id"]
 
                     # Refresh the workbook
-                    refresh_url = f"{server_url}/api/3.11/sites/{site_id}/workbooks/{workbook_id}/refresh"
+                    refresh_url = f"{server_url}/api/{api_version}/sites/{site_id}/workbooks/{workbook_id}/refresh"
                     refresh_data = {}
                     refresh_headers = {
                         "Accept": "application/json",
