@@ -8,6 +8,7 @@ In order to set up the integration, you should have familiarity with:
 - [dbt Cloud Webhooks](/docs/deploy/webhooks)
 - Zapier
 - The [Tableau API](https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm)
+- The [version](https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api_concepts_versions.htm#rest_api_versioning) of Tableau's REST API that is compatible with your server 
 
 ## Instructions
 
