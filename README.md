@@ -28,3 +28,88 @@ In order to set up the integration, you should have familiarity with:
         - store.set('TABLEAU_SITE_NAME', 'abc123') #replace with your Tableau Site/Server Name
         - store.set('TABLEAU_API_TOKEN_NAME', 'abc123') #replace with your Tableau API Token Name
         - store.set('TABLEAU_API_TOKEN_SECRET', 'abc123') #replace with your Tableau API Secret
+    - c. Next, add a code action (Code by Zapier -> "Run Python") to add the script to refresh the workbook.
+        - In the "Input data" section, map the following two items:
+            - raw_body: 1. Raw Body
+            - auth_header: 1. Headers Http Authorization
+        - Paste in the following code in the code section.  Be sure to replace the placeholder "YOUR_STORAGE_SECRET_HERE" with the UUID secret generated earlier along with the webhook key and Tableau authentication variables.
+            - ```python
+                import requests
+                import hashlib
+                import json
+                import hmac
+
+                # Access secret credentials
+                secret_store = StoreClient('YOUR_STORAGE_SECRET_HERE')
+                hook_secret = secret_store.get('DBT_WEBHOOK_KEY')
+                server_url = secret_store.get('TABLEAU_SITE_URL')
+                server_name = secret_store.get('TABLEAU_SITE_NAME')
+                pat_name = secret_store.get('TABLEAU_API_TOKEN_NAME')
+                pat_secret = secret_store.get('TABLEAU_API_TOKEN_SECRET')
+
+                #Enter the name of the workbook to refresh
+                workbook_name = "YOUR_WORKBOOK_NAME"
+
+                #Validate authenticity of webhook coming from dbt Cloud
+                auth_header = input_data['auth_header']
+                raw_body = input_data['raw_body']
+
+                signature = hmac.new(hook_secret.encode('utf-8'), raw_body.encode('utf-8'), hashlib.sha256).hexdigest()
+
+                if signature != auth_header:
+                  raise Exception("Calculated signature doesn't match contents of the Authorization header. This webhook may not have been sent from dbt Cloud.")
+
+                full_body = json.loads(raw_body)
+                hook_data = full_body['data'] 
+
+                if hook_data['runStatus'] == "Success":
+
+                    #Authenticate with Tableau Server to get an authentication token
+                    auth_url = f"{server_url}/api/3.11/auth/signin"
+                    auth_data = {
+                        "credentials": {
+                            "personalAccessTokenName": pat_name,
+                            "personalAccessTokenSecret": pat_secret,
+                            "site": {
+                                "contentUrl": server_name
+                            }
+                        }
+                    }
+                    auth_headers = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    }
+                    auth_response = requests.post(auth_url, data=json.dumps(auth_data), headers=auth_headers)
+
+                    #Extract token to use for subsequent calls
+                    auth_token = auth_response.json()["credentials"]["token"]
+                    site_id = auth_response.json()["credentials"]["site"]["id"]
+
+                    #Extract the workbook ID
+                    workbooks_url = f"{server_url}/api/3.11/sites/{site_id}/workbooks"
+                    workbooks_headers = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Tableau-Auth": auth_token
+                    }
+                    workbooks_params = {
+                        "filter": f"name:eq:{workbook_name}"
+                    }
+                    workbooks_response = requests.get(workbooks_url, headers=workbooks_headers, params=workbooks_params)
+
+                    #Assign workbook ID
+                    workbooks_data = workbooks_response.json()
+                    workbook_id = workbooks_data["workbooks"]["workbook"][0]["id"]
+
+                    # Refresh the workbook
+                    refresh_url = f"{server_url}/api/3.11/sites/{site_id}/workbooks/{workbook_id}/refresh"
+                    refresh_data = {}
+                    refresh_headers = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Tableau-Auth": auth_token
+                    }
+
+                    refresh_trigger = requests.post(refresh_url, data=json.dumps(refresh_data), headers=refresh_headers)
+                    return {"message": "Workbook refresh has been queued"}
+     - d. We're now ready to test our action and deploy our Zap.  Upon a successful test, you should see a refresh queued in your Tableau Server/Cloud jobs queue.
